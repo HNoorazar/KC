@@ -1423,7 +1423,7 @@ def peakdetect(y_axis, x_axis = None, lookahead=10, delta=0):
                     # end is within lookahead no more peaks can be found
                     break
                 continue
-            # else:  # slows shit down this does
+            # else:  # slows down this
             #    mx = ahead
             #    mxpos = x_axis[np.where(y_axis[index:index+lookahead]==mx)]
         
@@ -1440,7 +1440,7 @@ def peakdetect(y_axis, x_axis = None, lookahead=10, delta=0):
                 if index+lookahead >= length:
                     # end is within lookahead no more peaks can be found
                     break
-            # else:  # slows shit down this does
+            # else:  # slows down this
             #    mn = ahead
             #    mnpos = x_axis[np.where(y_axis[index:index+lookahead]==mn)]
     
