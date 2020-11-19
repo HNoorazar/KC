@@ -1,13 +1,8 @@
-/////
-/////
-/////  Either use/adjust Class_allWA.js or add .clip() to this script so it is accurate
-/////
-/////
 
 var myShapeFile = ee.FeatureCollection(Grant80Fields);
 print("Number of fiels in myShapeFile is ", myShapeFile.size());
 
-var start_date = '2017-10-01';
+var start_date = '2017-11-01';
 var end_date = '2017-12-31';
     
 
@@ -118,6 +113,7 @@ function extract_sentinel_IC(a_feature){
     var imageC = ee.ImageCollection('COPERNICUS/S2')
                 .filterDate(start_date, end_date)
                 .filterBounds(geom)
+                .map(function(image){return image.clip(geom)})
                 //.filterMetadata('CLOUDY_PIXEL_PERCENTAGE', "less_than", 10)
                 // .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 10))
                 .filter('CLOUDY_PIXEL_PERCENTAGE < 90')
@@ -220,24 +216,22 @@ var all_fields_TS = KC_2017_ImageCollection.map(mosaic_and_reduce_IC_mean);
 
 // Export the file into YOUR google drive
 
-Export.table.toDrive({
-  collection: all_fields_TS.flatten(),
-  description:'KirtisClass_2017',
-  folder:"KirtisClass_2017",
-  fileFormat: 'CSV'
-});
-
-
 // Export.table.toDrive({
 //   collection: all_fields_TS.flatten(),
-//   description: "KirtisClass_2017_columnNames",
+//   description:'KirtisClass_2017',
 //   folder:"KirtisClass_2017",
-//   fileNamePrefix: "KirtisClass_2017_columnNames",
-//   fileFormat: 'CSV',
-//   selectors:["ID", "Acres", "county", 
-//              "CropGrp", "CropTyp", "DataSrc", "doy", "EVI",
-//              "ExctAcr", "IntlSrD", "Irrigtn", 
-//              "LstSrvD", 'NDVI', "Notes", "image_year", "B8"]
+//   fileFormat: 'CSV'
 // });
 
 
+Export.table.toDrive({
+  collection: all_fields_TS.flatten(),
+  description: "KirtisClass_2017_columnNames",
+  folder:"KirtisClass_2017",
+  fileNamePrefix: "KirtisClass_2017_columnNames",
+  fileFormat: 'CSV',
+  selectors:["ID", "Acres", "county", 
+             "CropGrp", "CropTyp", "DataSrc", "doy", "EVI",
+             "ExctAcr", "IntlSrD", "Irrigtn", 
+             "LstSrvD", 'NDVI', "Notes", "B8"]
+});
