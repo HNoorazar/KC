@@ -28,114 +28,6 @@ import seaborn as sb
 #####
 ################################################################
 
-def create_calendar_table(SF_year = 2017):
-    start = str(SF_year) + "-01-01"
-    end = str(SF_year) + "-12-31"
-    
-    df = pd.DataFrame({"Date": pd.date_range(start, end)})
-    df["SF_year"] = df.Date.dt.year
-    
-    # add day of year
-    df["doy"] = 1 + np.arange(len(df))
-    # df['Weekday'] = df['Date'].dt.day_name()
-    
-    return df
-
-########################################################################
-
-def Null_SOS_EOS_by_DoYDiff(pd_TS, min_season_length=40):
-    """
-    input: pd_TS is a pandas dataframe
-           it includes a column SOS and a column EOS
-
-    output: create a vector that measures distance between DoY 
-    of an SOS and corresponding EOS.
-
-    It is possible that the number of one of the SOS and EOS is
-    different from the other. (perhaps just by 1)
-
-    So, we need to keep that in mind.
-    """
-    pd_TS_DoYDiff = pd_TS.copy()
-
-    # find indexes of SOS and EOS
-    SOS_indexes = pd_TS_DoYDiff.index[pd_TS_DoYDiff['SOS'] != 0].tolist()
-    EOS_indexes = pd_TS_DoYDiff.index[pd_TS_DoYDiff['EOS'] != 0].tolist()
-
-    """
-    It seems it is possible to only have 1 SOS with no EOS. (or vice versa).
-    In this case we can consider we only have 1 season!
-    """
-    if len(SOS_indexes) == 0 or len(EOS_indexes) == 0:
-        return pd_TS_DoYDiff
-
-    """
-    First we need to fix the prolems such as having 2 SOS and only 1 EOS, or,
-                                                    2 EOS and only 1 SOS, or,
-    it is possible that number of SOSs and number of EOSs are identical,
-    but the plot starts with EOS and ends with SOS.
-
-    It is also possible that first EOS is ealier than first SOS.
-
-    """
-    #
-    # Check if first EOS is less than first SOS
-    #
-    SOS_pointer = SOS_indexes[0]
-    EOS_pointer = EOS_indexes[0]
-    if (pd_TS_DoYDiff.loc[EOS_pointer, 'Date'] < pd_TS_DoYDiff.loc[SOS_pointer, 'Date']):
-        
-        # Remove the false EOS from dataFrame
-        pd_TS_DoYDiff.loc[EOS_pointer, 'EOS'] = 0
-        
-        # remove the first element of EOS indexes
-        EOS_indexes.pop(0)
-
-    #
-    # Check if last SOS is greater than last EOS
-    #
-    if len(EOS_indexes)==0 or len(EOS_indexes)==0:
-        return pd_TS_DoYDiff
-
-    SOS_pointer = SOS_indexes[-1]
-    EOS_pointer = EOS_indexes[-1]
-    if (pd_TS_DoYDiff.loc[EOS_pointer, 'Date'] < pd_TS_DoYDiff.loc[SOS_pointer, 'Date']):
-        
-        # Remove the false EOS from dataFrame
-        pd_TS_DoYDiff.loc[SOS_pointer, 'SOS'] = 0
-        
-        # remove the first element of EOS indexes
-        SOS_indexes.pop()
-    
-    if len(SOS_indexes) != len(EOS_indexes):
-        #
-        # in this case we have an extra SOS (at the end) or EOS (at the beginning)
-        #
-        print ("Error occured at: ")
-        print (pd_TS.ID.unique()[0])
-        print (pd_TS.image_year.unique()[0])
-        raise ValueError("SOS and EOS are not of the same length.")
-
-    """
-    Go through seasons and invalidate them in their length is too short
-    """
-    for ii in np.arange(len(SOS_indexes)):
-        SOS_pointer = SOS_indexes[ii]
-        EOS_pointer = EOS_indexes[ii]
-        
-        current_growing_season_Length = (pd_TS_DoYDiff.loc[EOS_pointer, 'Date'] - \
-                                         pd_TS_DoYDiff.loc[SOS_pointer, 'Date']).days
-
-
-        #
-        #  Kill/invalidate the SOS and EOS if growing season length is too short
-        #
-        if current_growing_season_Length < min_season_length:
-            pd_TS_DoYDiff.loc[SOS_pointer, 'SOS'] = 0
-            pd_TS_DoYDiff.loc[EOS_pointer, 'EOS'] = 0
-        
-    return(pd_TS_DoYDiff)
-
 ########################################################################
 
 def addToDF_SOS_EOS_White(pd_TS, VegIdx = "EVI", onset_thresh=0.15, offset_thresh=0.15):
@@ -154,15 +46,6 @@ def addToDF_SOS_EOS_White(pd_TS, VegIdx = "EVI", onset_thresh=0.15, offset_thres
     
     colName = VegIdx + "_ratio"
     pandaFrame[colName] = (pandaFrame[VegIdx] - VegIdx_min) / VegRange
-
-    # if (onset_thresh == offset_thresh):
-    #     SOS_EOS_candidates = pandaFrame[colName] - onset_thresh
-    #     sign_change = find_signChange_locs_EqualOnOffset(SOS_EOS_candidates.values)
-    # else:
-    #     SOS_candidates = pandaFrame[colName] - onset_thresh
-    #     EOS_candidates = offset_thresh - pandaFrame[colName]
-    #     sign_change = find_signChange_locs_DifferentOnOffset(SOS_candidates.values, EOS_candidates.values)
-    # pandaFrame['SOS_EOS'] = sign_change * pandaFrame[VegIdx]
     
     SOS_candidates = pandaFrame[colName] - onset_thresh
     EOS_candidates = offset_thresh - pandaFrame[colName]
@@ -172,35 +55,6 @@ def addToDF_SOS_EOS_White(pd_TS, VegIdx = "EVI", onset_thresh=0.15, offset_thres
     pandaFrame['EOS'] = EOS * pandaFrame[VegIdx]
 
     return(pandaFrame)
-
-########################################################################
-
-def find_signChange_locs_DifferentOnOffset(SOS_candids, EOS_candids):
-    if type(SOS_candids) != np.ndarray:
-        SOS_candids = SOS_candids.values
-
-    if type(EOS_candids) != np.ndarray:
-        EOS_candids = EOS_candids.values
-
-    SOS_sign_change = np.zeros(len(SOS_candids))
-    EOS_sign_change = np.zeros(len(EOS_candids))
-
-    pointer = 0
-    for pointer in np.arange(0, len(SOS_candids)-1):
-        if SOS_candids[pointer] < 0:
-            if SOS_candids[pointer+1] > 0:
-                SOS_sign_change[pointer+1] = 1
-
-        if EOS_candids[pointer] < 0:
-            if EOS_candids[pointer+1] > 0:
-                EOS_sign_change[pointer+1] = 1
-
-    # sign_change = SOS_sign_change + EOS_sign_change
-    return (SOS_sign_change, EOS_sign_change) # sign_change
-
-########################################################################
-
-
 
 ########################################################################
 
@@ -417,45 +271,6 @@ def interpolate_outliers_EVI_NDVI(outlier_input, given_col):
 
 ########################################################################
 
-def initial_clean_NDVI(df):
-    dt_copy = df.copy()
-    # remove the useles system:index column
-    if ("system:index" in list(dt_copy.columns)):
-        dt_copy = dt_copy.drop(columns=['system:index'])
-    
-    # Drop rows whith NA in NDVI column.
-    dt_copy = dt_copy[dt_copy['NDVI'].notna()]
-
-    # replace values beyond 1 and -1 with 1.5 and -1.5
-    dt_copy.loc[dt_copy['NDVI'] > 1, "NDVI"] = 1.5
-    dt_copy.loc[dt_copy['NDVI'] < -1, "NDVI"] = -1.5
-
-    if ("image_year" in list(dt_copy.columns)):
-        dt_copy.image_year = dt_copy.image_year.astype(int)
-    return (dt_copy)
-
-########################################################################
-
-def initial_clean_EVI(df):
-    dt_copy = df.copy()
-    # remove the useles system:index column
-    if ("system:index" in list(dt_copy.columns)):
-        dt_copy = dt_copy.drop(columns=['system:index'])
-    
-    # Drop rows whith NA in EVI column.
-    dt_copy = dt_copy[dt_copy['EVI'].notna()]
-
-    # replace values beyond 1 and -1 with 1.5 and -1.5
-    dt_copy.loc[dt_copy['EVI'] > 1, "EVI"] = 1.5
-    dt_copy.loc[dt_copy['EVI'] < -1, "EVI"] = -1.5
-
-    if ("image_year" in list(dt_copy.columns)):
-        dt_copy.image_year = dt_copy.image_year.astype(int)
-    
-    return (dt_copy)
-
-########################################################################
-
 def initial_clean(df, column_to_be_cleaned):
     dt_copy = df.copy()
     # remove the useles system:index column
@@ -466,6 +281,9 @@ def initial_clean(df, column_to_be_cleaned):
     dt_copy = dt_copy[dt_copy[column_to_be_cleaned].notna()]
 
     if (column_to_be_cleaned in ["NDVI", "EVI"]):
+        #
+        # 1.5 and -1.5 are just indicators for values that have violated the boundaries.
+        #
         dt_copy.loc[dt_copy[column_to_be_cleaned] > 1, column_to_be_cleaned] = 1.5
         dt_copy.loc[dt_copy[column_to_be_cleaned] < -1, column_to_be_cleaned] = -1.5
 
@@ -666,7 +484,7 @@ def regularize_movingWindow_windowSteps_2Yrs(one_field_df, SF_yr=2017, veg_idxs,
         curr_time_window = curr_time_window[curr_time_window.doy < full_year_steps[curr_count+1]]
 
         """
-          In each time window peak the maximum of present values
+          In each time window pick the maximum of present values
 
           If in a window (e.g. 10 days) we have no value observed by Sentinel, 
           then use -1.5 as an indicator. That will be a gap to be filled (function fill_theGap_linearLine).
@@ -679,8 +497,6 @@ def regularize_movingWindow_windowSteps_2Yrs(one_field_df, SF_yr=2017, veg_idxs,
         regular_df.loc[row_or_count, 'image_year'] = curr_year
         regular_df.loc[row_or_count, 'doy'] = full_year_steps[curr_count]
     return(regular_df)
-
-
 
 def extract_XValues_of_2Yrs_TS(regularized_TS, SF_yr):
     # old name extract_XValues_of_RegularizedTS_2Yrs().
@@ -873,38 +689,6 @@ def add_human_start_time(HDF):
 
 ########################################################################
 
-def extract_XValues_of_3Yrs_TS(regularized_TS, SF_yr):
-    # old name extract_XValues_of_RegularizedTS_3Yrs().
-    # I do not know why I had Regularized in it.
-    # new name extract_XValues_of_3Yrs_TS
-    """
-    Jul 1.
-    This function is written for inluding data from 3 years.
-    e.g.:
-    3 months in 2016, full year 2017, and 3 months in 2018
-
-    """
-
-    X_values_prev_year = regularized_TS[regularized_TS.image_year == (SF_yr - 1)]['doy'].copy().values
-    X_values_full_year = regularized_TS[regularized_TS.image_year == (SF_yr)]['doy'].copy().values
-    X_values_next_year = regularized_TS[regularized_TS.image_year == (SF_yr + 1)]['doy'].copy().values
-
-    if check_leap_year(SF_yr-1):
-        X_values_full_year = X_values_full_year + 366
-        X_values_next_year = X_values_next_year + 366
-    else:
-        X_values_full_year = X_values_full_year + 365
-        X_values_next_year = X_values_next_year + 365
-
-    if check_leap_year(SF_yr):
-        X_values_next_year = X_values_next_year + 366
-    else:
-        X_values_next_year = X_values_next_year + 365
-    
-    return (np.concatenate([X_values_prev_year, X_values_full_year, X_values_next_year]))
-
-########################################################################
-
 def check_leap_year(year):
     if (year % 4) == 0:
         if (year % 100) == 0:
@@ -916,185 +700,6 @@ def check_leap_year(year):
             return (True)
     else:
         return (False)
-
-########################################################################
-
-def regularize_movingWindow_windowSteps_18Months(one_field_df, SF_yr, V_idks, window_size=10):
-    #
-    #  This function almost returns a data frame with data
-    #  that are window_size away from each other. i.e. regular space in time.
-    #  **** For **** 3 months + 12 months + 3 months data.
-    #
-    
-    a_field_df = one_field_df.copy()
-    # initialize output dataframe
-    regular_cols = ['ID', 'Acres', 'county', 'CropGrp', 'CropTyp',
-                    'DataSrc', 'ExctAcr', 'IntlSrD', 'Irrigtn', 'LstSrvD', 'Notes',
-                    'RtCrpTy', 'Shap_Ar', 'Shp_Lng', 'TRS', 'image_year', 
-                    'SF_year', 'doy', V_idks]
-    #
-    # for a good measure we start at 273 (274 does not matter either)
-    # and the first 
-    #
-    first_year_steps = list(range(274, 365, 10))
-    first_year_steps[-1] = 366
-
-    full_year_steps = list(range(1, 365, 10))
-    full_year_steps[-1] = 366
-
-    last_year_steps = list(range(1, 91, 10))
-    last_year_steps = last_year_steps + [91]
-
-    DoYs = first_year_steps + full_year_steps + last_year_steps
-
-    #
-    # There are 3 months before, a full year, and 3 months after
-    # (30+30+31) + 365 + (31+28+31) = 546 days. If we do every 10 days 
-    # then we have 54 data points
-    #
-    no_days = 546
-    no_steps = int(no_days/window_size)
-
-    regular_df = pd.DataFrame(data = None, 
-                              index = np.arange(no_steps), 
-                              columns = regular_cols)
-
-    regular_df['ID'] = a_field_df.ID.unique()[0]
-    regular_df['Acres'] = a_field_df.Acres.unique()[0]
-    regular_df['county'] = a_field_df.county.unique()[0]
-    regular_df['CropGrp'] = a_field_df.CropGrp.unique()[0]
-
-    regular_df['CropTyp'] = a_field_df.CropTyp.unique()[0]
-    regular_df['DataSrc'] = a_field_df.DataSrc.unique()[0]
-    regular_df['ExctAcr'] = a_field_df.ExctAcr.unique()[0]
-    regular_df['IntlSrD'] = a_field_df.IntlSrD.unique()[0]
-    regular_df['Irrigtn'] = a_field_df.Irrigtn.unique()[0]
-
-    regular_df['LstSrvD'] = a_field_df.LstSrvD.unique()[0]
-    regular_df['Notes'] = str(a_field_df.Notes.unique()[0])
-    regular_df['RtCrpTy'] = str(a_field_df.RtCrpTy.unique()[0])
-    regular_df['Shap_Ar'] = a_field_df.Shap_Ar.unique()[0]
-    regular_df['Shp_Lng'] = a_field_df.Shp_Lng.unique()[0]
-    regular_df['TRS'] = a_field_df.TRS.unique()[0]
-
-    regular_df['SF_year'] = a_field_df.SF_year.unique()[0]
-    
-    # I will write this in 3 for-loops.
-    # perhaps we can do it in a cleaner way like using zip or sth.
-    #
-    #############################################
-    #
-    #  First year (last 3 months of previous year)
-    #
-    #############################################
-    for row_or_count in np.arange(len(first_year_steps)-1):
-        curr_year = SF_yr - 1
-        curr_time_window = a_field_df[a_field_df.image_year == curr_year].copy()
-        curr_time_window = curr_time_window[curr_time_window.doy >= first_year_steps[row_or_count]]
-        curr_time_window = curr_time_window[curr_time_window.doy < first_year_steps[row_or_count+1]]
-
-        if len(curr_time_window)==0: 
-            regular_df.loc[row_or_count, V_idks] = -1.5
-        else:
-            regular_df.loc[row_or_count, V_idks] = max(curr_time_window[V_idks])
-
-        regular_df.loc[row_or_count, 'image_year'] = curr_year
-        regular_df.loc[row_or_count, 'doy'] = first_year_steps[row_or_count]
-
-    #############################################
-    #
-    #  Full year (main year, 12 months)
-    #
-    #############################################
-    row_count_start = len(first_year_steps) - 1
-    row_count_end = row_count_start + len(full_year_steps) - 1
-
-    for row_or_count in np.arange(row_count_start, row_count_end):
-        curr_year = SF_yr
-        curr_count = row_or_count - row_count_start
-
-        curr_time_window = a_field_df[a_field_df.image_year == curr_year].copy()
-        curr_time_window = curr_time_window[curr_time_window.doy >= full_year_steps[curr_count]]
-        curr_time_window = curr_time_window[curr_time_window.doy < full_year_steps[curr_count+1]]
-
-        if len(curr_time_window)==0: 
-            regular_df.loc[row_or_count, V_idks] = -1.5
-        else:
-            regular_df.loc[row_or_count, V_idks] = max(curr_time_window[V_idks])
-
-        regular_df.loc[row_or_count, 'image_year'] = curr_year
-        regular_df.loc[row_or_count, 'doy'] = full_year_steps[curr_count]
-
-    #############################################
-    #
-    #  Last year (First 3 months of Next year)
-    #
-    #############################################
-    row_count_start = len(first_year_steps) - 1 + len(full_year_steps) - 1
-    row_count_end = row_count_start + len(last_year_steps) - 1
-
-    for row_or_count in np.arange(row_count_start, row_count_end):
-        curr_year = SF_yr + 1
-        curr_count = row_or_count - row_count_start
-
-        curr_time_window = a_field_df[a_field_df.image_year == curr_year].copy()
-        curr_time_window = curr_time_window[curr_time_window.doy >= last_year_steps[curr_count]]
-        curr_time_window = curr_time_window[curr_time_window.doy < last_year_steps[curr_count+1]]
-
-        if len(curr_time_window)==0: 
-            regular_df.loc[row_or_count, V_idks] = -1.5
-        else:
-            regular_df.loc[row_or_count, V_idks] = max(curr_time_window[V_idks])
-
-        regular_df.loc[row_or_count, 'image_year'] = curr_year
-        regular_df.loc[row_or_count, 'doy'] = last_year_steps[curr_count]
-        
-    return (regular_df)
-
-########################################################################
-
-def max_movingWindow_windowSteps(VI_TS_npArray, window_size):
-    """
-    This function moves the window by a step size of window_size.
-    i.e. window 1 is from 1-10, window 2 is from 11-20...
-    """
-    # replace NAs with -1.5
-    VI_TS_npArray = np.where(np.isnan(VI_TS_npArray), -1.5, VI_TS_npArray)
-
-    # form the output vector
-    output_len = int(np.floor(len(VI_TS_npArray) / window_size))
-    output = np.ones(output_len) * (-666)
-
-    for count in range(output_len):
-        window_start = count * window_size
-        window_end = window_start + window_size
-
-        if (count == output_len-1):
-            window_end = len(VI_TS_npArray)
-
-        curr_window = VI_TS_npArray[window_start : window_end]
-        output[count] = max(curr_window)
-    return(output)
-
-########################################################################
-
-def max_movingWindow_1Steps(VI_TS_npArray, window_size):
-    """
-    This function moves the window by a step size of 1.
-    i.e. window 1 is from 1-10, window 2 is from 2-11, window 3 is 3-12 ...
-    """
-    # replace NAs with -1.5
-    VI_TS_npArray = np.where(np.isnan(VI_TS_npArray), -1.5, VI_TS_npArray)
-
-    # form the output vector
-    output_len = int(len(VI_TS_npArray) - window_size)
-    output = np.ones(output_len) * (-666)
-
-    for count in range(output_len):
-        window_start = count
-        window_end = window_start + window_size
-        output[count] = max(VI_TS_npArray[window_start : window_end])
-    return(output)
 
 ########################################################################
 
@@ -1114,63 +719,6 @@ def correct_timeColumns_dataTypes(dtf):
     dtf.system_start_time = dtf.system_start_time/1000
     dtf = dtf.astype({'doy': 'int', 'image_year': 'int'})
     return(dtf)
-
-########################################################################
-
-def divide_double_nonDouble_peaks(dt_dt):
-    
-    # subset the double-peaked
-    double_peaked = dt_dt[dt_dt["peak_count"] == 2.0].copy()
-
-    # subset the not double-peaked
-    not_double_peaked = dt_dt[dt_dt["peak_count"] != 2.0 ].copy()
-
-    return (double_peaked, not_double_peaked)
-
-def divide_double_nonDouble_by_notes(dt_d):
-    dt_copy = dt_d.copy()
-
-    # convert NaN and NAs to string so we can subset/index 
-    dt_copy[["Notes"]] = dt_copy[["Notes"]].astype(str)
-
-    # convert to lower case
-    dt_copy["Notes"] = dt_copy["Notes"].str.lower()
-
-    # replace dbl with double
-    dt_copy.replace(to_replace="dbl", value="double", inplace=True)
-    
-    # subset the notes with double in it.
-    double_cropped = dt_copy[dt_copy["Notes"].str.contains("double")]
-
-    # subset the notes without double in it.
-    not_double_cropped = dt_copy[~dt_copy["Notes"].str.contains("double")]
-
-    return (double_cropped, not_double_cropped)
-
-def filter_double_by_Notes(dt_d):
-    dt_copu = dt_d.copy()
-    # convert NaN and NAs to string so we can subset/index 
-    dt_copu[["Notes"]] = dt_copu[["Notes"]].astype(str)
-
-    # convert to lower case
-    dt_copu["Notes"] = dt_copu["Notes"].str.lower()
-
-    # replace dbl with double
-    dt_copu.replace(to_replace="dbl", value="double", inplace=True)
-    
-    # subset the notes with double in it.
-    double_cropped = dt_copu[dt_copu["Notes"].str.contains("double")]
-
-    return (double_cropped)
-
-def form_xs_ys_from_peakdetect(max_peak_list, doy_vect):
-    dd = np.array(doy_vect)
-    xs = np.zeros(len(max_peak_list))
-    ys = np.zeros(len(max_peak_list))
-    for ii in range(len(max_peak_list)):  
-        xs[ii] = dd[int(max_peak_list[ii][0])]
-        ys[ii] = max_peak_list[ii][1]
-    return (xs, ys)
 
 def keep_WSDA_columns(dt_dt):
     needed_columns = ['ID', 'Acres', 'CovrCrp', 'CropGrp', 'CropTyp',
@@ -1201,168 +749,4 @@ def save_matlab_matrix(filename, matDict):
     except:
         print("ERROR: could not write matrix file " + filename)
 
-def separate_x_and_y(m_list):
-    #
-    #  input is a list whose elements are arrays of size 2: (DoY, peak)
-    #  
-    #  output: two vectors DoY = [d1, d2, ..., dn] and peaks[p1, p2, ..., pn]
-    #
-    DoY_vec = np.zeros(len(m_list))
-    peaks_vec = np.zeros(len(m_list))
-    counter = 0
-    for entry in m_list:  
-        DoY_vec[counter] = int(entry[0])
-        peaks_vec[counter] = entry[1]
-        counter += 1
-    return (DoY_vec, peaks_vec)
 
-def generate_peak_df(an_EE_TS):
-    
-    """
-    input an_EE_TS is a file with several polygon 
-          where for each polygon it includes the time series of NDVI.
-
-    output: a dataframe that includes only the peak values and their corresponding
-            DoY per field. It also includes the WSDA information.
-    """
-    an_EE_TS = initial_clean(an_EE_TS)
-
-    ### List of unique polygons
-    polygon_list = an_EE_TS['ID'].unique()
-
-    output_columns = ['ID', 'Acres', 'CovrCrp', 'CropGrp', 'CropTyp',
-                      'DataSrc', 'ExctAcr', 'IntlSrD', 'Irrigtn', 'LstSrvD', 'Notes',
-                      'RtCrpTy', 'Shap_Ar', 'Shp_Lng', 'TRS', 'county', 'year',
-                      'peak_Doy', 'peak_value']
-    # all_polygons_and_their_peaks = pd.DataFrame(data=None, 
-    #                                             columns=output_columns)
-
-    #
-    # for each polygon assume there will be 3 peaks.
-    # for memory allocation and speed up
-    #
-    all_polygons_and_their_peaks = pd.DataFrame(data=None, 
-                                                index=np.arange(3*len(an_EE_TS)), 
-                                                columns=output_columns)
-
-    double_columns = ['ID', 'Acres', 'CovrCrp', 'CropGrp', 'CropTyp',
-                      'DataSrc', 'ExctAcr', 'IntlSrD', 'Irrigtn', 'LstSrvD', 'Notes',
-                      'RtCrpTy', 'Shap_Ar', 'Shp_Lng', 'TRS', 'county', 'year']
-
-    double_polygons = pd.DataFrame(data=None, 
-                                   index=np.arange(2*len(an_EE_TS)), 
-                                   columns=double_columns)
-
-
-    pointer = 0
-    double_pointer = 0
-    for a_poly in polygon_list:
-        curr_field = an_EE_TS[an_EE_TS['ID']==a_poly]
-
-        year = int(curr_field['year'].unique())
-        plant = curr_field['CropTyp'].unique()[0]
-        county = curr_field['county'].unique()[0]
-        TRS = curr_field['TRS'].unique()[0]
-
-        ### 
-        ###  There is a chance that a polygon is repeated twice?
-        ###
-
-        X = curr_field['doy']
-        y = curr_field['NDVI']
-        freedom_df = 7
-        #############################################
-        ###
-        ###             Smoothen
-        ###
-        #############################################
-
-        # Generate spline basis with "freedom_df" degrees of freedom
-        x_basis = cr(X, df=freedom_df, constraints='center')
-
-        # Fit model to the data
-        model = LinearRegression().fit(x_basis, y)
-
-        # Get estimates
-        y_hat = model.predict(x_basis)
-
-        #############################################
-        ###
-        ###             find peaks
-        ###
-        #############################################
-        # peaks_LWLS_1 = peakdetect(LWLS_1[:, 1], lookahead = 10, delta=0)
-        # max_peaks = peaks_LWLS_1[0]
-        # peaks_LWLS_1 = form_xs_ys_from_peakdetect(max_peak_list = max_peaks, doy_vect=X)
-
-        peaks_spline = peakdetect(y_hat, lookahead = 10, delta=0)
-        max_peaks =  peaks_spline[0]
-        peaks_spline = form_xs_ys_from_peakdetect(max_peak_list = max_peaks, doy_vect=X)
-
-        DoYs_series = pd.Series(peaks_spline[0])
-        peaks_series = pd.Series(peaks_spline[1])
-
-        peak_df = pd.DataFrame({ 
-                           'peak_Doy': DoYs_series,
-                           'peak_value': peaks_series
-                          }) 
-
-
-        WSDA_df = keep_WSDA_columns(curr_field)
-        WSDA_df = WSDA_df.drop_duplicates()
-        
-        if (len(peak_df)>0):
-            WSDA_df = pd.concat([WSDA_df]*peak_df.shape[0]).reset_index()
-            # WSDA_df = pd.concat([WSDA_df, peak_df], axis=1, ignore_index=True)
-            WSDA_df = WSDA_df.join(peak_df)
-            if ("index" in WSDA_df.columns):
-                WSDA_df = WSDA_df.drop(columns=['index'])
-
-            # all_polygons_and_their_peaks = all_polygons_and_their_peaks.append(WSDA_df, sort=False)
-
-            """
-            copy the .values. Otherwise the index inconsistency between
-            WSDA_df and all_poly... will prevent the copying.
-            """
-            all_polygons_and_their_peaks.iloc[pointer:(pointer + len(WSDA_df))] = WSDA_df.values
-
-            if (len(WSDA_df) == 2):
-                WSDA_df = WSDA_df.drop(columns=['peak_Doy', 'peak_value'])
-                WSDA_df = WSDA_df.drop_duplicates()
-                double_polygons.iloc[double_pointer:(double_pointer + len(WSDA_df))] = WSDA_df.values
-                double_pointer += len(WSDA_df)
-
-            pointer += len(WSDA_df)
-
-            # to make sure the reference by address thing 
-            # will not cause any problem.
-        del(WSDA_df)
-
-
-        """
-        # first I decided to add all DoY and peaks in one row to avoid
-        # multiple rows per (field, year)
-        # However, in this way, each pair of (field, year)
-        # can have different column sizes.
-        # So, we cannot have one dataframe to include everything in it.
-        # so, we will have to do dictionary to save out puts.
-        # Lets just do replicates... easier to handle perhaps down the road.
-        #
-        DoY_colNames = [i + j for i, j in zip(\
-                                              ["DoY_"]*(len(DoYs_series)+1), \
-                                              [str(i) for i in range(1, len(DoYs_series)+1)] )] 
-
-        peak_colNames = [i + j for i, j in zip(\
-                                               ["peak_"]*(len(peaks_series)+1), \
-                                               [str(i) for i in range(1, len(peaks_series)+1)] )]
-
-        WSDA_df[DoY_colNames] = pd.DataFrame([DoYs_series], index=WSDA_df.index)
-        WSDA_df[peak_colNames] = pd.DataFrame([peaks_series], index=WSDA_df.index)
-        """
-
-    """
-    Instead of the following two we can do drop_duplicates()
-    """
-    all_polygons_and_their_peaks = all_polygons_and_their_peaks[0:(pointer+1)]
-    double_polygons = double_polygons[0:(double_pointer+1)]
-    return(all_polygons_and_their_peaks, double_polygons)
