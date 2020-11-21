@@ -1,8 +1,22 @@
+// 
+// 
+// Impor the provided shapefile with 80 fields as asset.
+// The steps for how to do so is shown in the powerpoint file here:
+// https://github.com/HNoorazar/KC/blob/main/remoteSensing.pptx
+// 
 
+// The following line converts the shapefile into a FeatureCollection
+// that is useable by your script.
+//
 var myShapeFile = ee.FeatureCollection(Grant80Fields);
 print("Number of fiels in myShapeFile is ", myShapeFile.size());
 
-var start_date = '2017-11-01';
+// Define the start and the end of the time period you want to 
+// read. The WSDA crop classification in the shapefile is from 2017, 
+// so, we must use 2017.
+// Otherwise, your images and their labels will not be consistent.
+//
+var start_date = '2017-01-01';
 var end_date = '2017-12-31';
     
 
@@ -14,7 +28,12 @@ var end_date = '2017-12-31';
 ///
 ///  Function to mask clouds using the Sentinel-2 QA band.
 ///
+
+//
+// Toss cloudly pixels Function.
+//
 function maskS2clouds(image) {
+  // QA60 is a band storing the metdata related to clouds.
     var qa = image.select('QA60');
 
     // Bits 10 and 11 are clouds and cirrus, respectively.
@@ -33,8 +52,8 @@ function maskS2clouds(image) {
 
 ////////////////////////////////////////////////
 ///
-/// add Day of Year to an image
-///
+/// add Day of Year (1 to 365/366) to an image
+/// 
 
 function addDate_to_image(image){
   var doy = image.date().getRelative('day', 'year');
@@ -46,9 +65,10 @@ function addDate_to_image(image){
 
 ////////////////////////
 ///
-/// add Day of Year to an imageCollection
-///
-
+/// add Day of Year to an imageCollection/Time Series by using map(.) function
+/// to recursively call the function addDate_to_image(.) defined above
+//
+//
 function addDate_to_collection(collec){
   var C = collec.map(addDate_to_image);
   return C;
@@ -67,8 +87,9 @@ function addNDVI_to_image(image) {
 ////////////////////////////////////////////////
 ///
 ///
-/// add NDVI to an imageCollection
-
+/// add NDVI to an imageCollection by using map(.) function
+/// to recursively call the function addDate_to_image(.) defined above
+//
 function add_NDVI_collection(image_IC){
   var NDVI_IC = image_IC.map(addNDVI_to_image);
   return NDVI_IC;
@@ -77,7 +98,8 @@ function add_NDVI_collection(image_IC){
 ////////////////////////////////////////////////
 ///
 ///
-/// add EVI to an image
+/// Similar to NDVI functions defined above, we 
+/// define and add EVI to an image
 
 function addEVI_to_image(image) {
   var evi = image.expression(
@@ -102,20 +124,24 @@ function add_EVI_collection(image_IC){
 ////////////////////////////////////////////////
 ///
 ///
-/// Extract ImageCollection from Sentinel 2- level 1C 
-/// dates etc are hard-coded to enable us to use map() function
 
+
+/// Extract ImageCollection/Time-Series for one field
+// out of the 80 fields in the shapefile. And this function
+// will be used recursively later to extract time series of
+// all of the 80 fields.
+//
 function extract_sentinel_IC(a_feature){
-    // var cloud_percentage = 
-    // var geom = ee.Feature(feature_col).geometry();
+  // a_feature: is one polygon and its charachteristics (Acres, Irrigation) in the shapefile 
+  
     var geom = a_feature.geometry();
     var newDict = {'original_polygon_1': geom};
+    
     var imageC = ee.ImageCollection('COPERNICUS/S2')
                 .filterDate(start_date, end_date)
                 .filterBounds(geom)
+                // Clip(.) function  is clipping the boundary of the given field.
                 .map(function(image){return image.clip(geom)})
-                //.filterMetadata('CLOUDY_PIXEL_PERCENTAGE', "less_than", 10)
-                // .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 10))
                 .filter('CLOUDY_PIXEL_PERCENTAGE < 90')
                 .sort('system:time_start', true);
     
@@ -141,12 +167,19 @@ function extract_sentinel_IC(a_feature){
     // add original geometry and WSDA data as a feature to the collection
     imageC = imageC.set({ 'original_polygon': geom,
                           'WSDA':a_feature
+    
                         });
-    // imageC = imageC.sort('system:time_start', true);
 
-    //imageC = imageC.map(add_NDVI_collection)
   return imageC;
 }
+
+
+//
+// The function below (mosaic_and_reduce_IC_mean(.)) stiches
+// the tiles that cover a polygon to create a complete image of a field
+// and then reduces (i.e. takes averages of all) NDVI pixels values into one value for
+// the field.
+//
 
 function mosaic_and_reduce_IC_mean(an_IC){
   an_IC = ee.ImageCollection(an_IC);
@@ -207,12 +240,12 @@ function mosaic_and_reduce_IC_mean(an_IC){
 
 ///
 ///                         functions definitions end
-///
+//
 ////////////////////////////////////////////////////////////////////////////////////////
 
-var KC_2017_ImageCollection = myShapeFile.map(extract_sentinel_IC);
+var ImageCollection_2017 = myShapeFile.map(extract_sentinel_IC);
 
-var all_fields_TS = KC_2017_ImageCollection.map(mosaic_and_reduce_IC_mean);
+var all_fields_TS = ImageCollection_2017.map(mosaic_and_reduce_IC_mean);
 
 // Export the file into YOUR google drive
 
@@ -223,15 +256,20 @@ var all_fields_TS = KC_2017_ImageCollection.map(mosaic_and_reduce_IC_mean);
 //   fileFormat: 'CSV'
 // });
 
+// This is the Folder name and File name that will
+// be used by Export.table.toDrive(.) to export your data
+// 
+var yourFileName = "PutYourNameHere";
+var FolderName = "PutAFildeNameHere";
 
 Export.table.toDrive({
   collection: all_fields_TS.flatten(),
-  description: "KirtisClass_2017_columnNames",
-  folder:"KirtisClass_2017",
-  fileNamePrefix: "KirtisClass_2017_columnNames",
+  description: yourFileName,
+  folder: FolderName,
+  fileNamePrefix: yourFileName,
   fileFormat: 'CSV',
-  selectors:["ID", "Acres", "county", 
-             "CropGrp", "CropTyp", "DataSrc", "doy", "EVI",
-             "ExctAcr", "IntlSrD", "Irrigtn", 
-             "LstSrvD", 'NDVI', "Notes", "B8"]
+  // Provide the name of variables of interst to export.
+  // Some of these names come from shapefile that we have added to imagecollection
+  //
+  selectors:["ID", "CropTyp", "doy", "EVI", 'NDVI']
 });
