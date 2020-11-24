@@ -317,10 +317,9 @@ var reduction_geometry = ee.FeatureCollection(SF);
 print ("Number of fields in the shapefile is", SF_regions.size());
 
 
-var wstart_date = '2016-08-01';
-// var wend_date = '2019-03-31';
+var wstart_date = '2017-01-01';
 var wend_date = '2017-12-31';
-var cloud_perc = 10;
+var cloud_perc = 30;
 
 var imageC = extract_sentinel_IC(SF_regions, wstart_date, wend_date);
 var reduced = mosaic_and_reduce_IC_mean(imageC, reduction_geometry, wstart_date, wend_date);  
