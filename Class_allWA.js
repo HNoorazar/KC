@@ -327,7 +327,7 @@ var featureCollection = reduced;
 
 // var featureCollection = featureCollection.map(myproperties);
 
-var outfile_name = '80Fields_' + cloud_perc + "cloud_selectors";
+var outfile_name = '80Fields_timeSeries' + cloud_perc;
 Export.table.toDrive({
   collection: featureCollection,
   description:outfile_name,
