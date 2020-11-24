@@ -328,19 +328,14 @@ var featureCollection = reduced;
 
 // var featureCollection = featureCollection.map(myproperties);
 
-var outfile_name = 'Eastern_WA_2017_' + cloud_perc + "cloud_selectors";
+var outfile_name = '80Fields_' + cloud_perc + "cloud_selectors";
 Export.table.toDrive({
   collection: featureCollection,
   description:outfile_name,
   folder:"Eastern_WA_" + cloud_perc + "cloud",
   fileNamePrefix: outfile_name,
   fileFormat: 'CSV',
-  selectors:["ID", "Acres", "BSI", "county", 
-             "CropGrp", "CropTyp", "DataSrc", "doy", "EVI",
-             "ExctAcr", "IntlSrD", "Irrigtn", 
-             "LstSrvD", "LSWI", 'NDVI', "NDWI", "Notes", 
-             "PSRI", "RtCrpTy", "Shap_Ar", "Shp_Lng", 
-             "system_start_time", "TRS", "image_year", "B8"]
+  selectors:["ID", "CropTyp", "doy", "EVI", 'NDVI']
 });
 
 
