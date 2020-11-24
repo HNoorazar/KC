@@ -331,7 +331,7 @@ var outfile_name = '80Fields_' + cloud_perc + "cloud_selectors";
 Export.table.toDrive({
   collection: featureCollection,
   description:outfile_name,
-  folder:"Eastern_WA_" + cloud_perc + "cloud",
+  folder:"KirtisClass_2017",
   fileNamePrefix: outfile_name,
   fileFormat: 'CSV',
   selectors:["ID", "CropTyp", "doy", "EVI", 'NDVI']
