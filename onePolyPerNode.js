@@ -142,7 +142,7 @@ function extract_sentinel_IC(a_feature){
                 .filterBounds(geom)
                 // Clip(.) function  is clipping the boundary of the given field.
                 .map(function(image){return image.clip(geom)})
-                .filter('CLOUDY_PIXEL_PERCENTAGE < 90')
+                .filter(ee.Filter.lte('CLOUDY_PIXEL_PERCENTAGE', 30))
                 .sort('system:time_start', true);
     
     // toss out cloudy pixels
